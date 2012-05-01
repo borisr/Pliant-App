@@ -1,0 +1,183 @@
+module "/pliant/language/unsafe.pli"
+
+method str mysearch pattern notfound -> pos
+  arg Str str ; arg Str pattern ; arg Int notfound pos
+  pos := shunt pattern="" notfound (str search pattern notfound)
+method str contains str2 -> ok
+  arg Str str str2 ; arg Bool ok
+  ok := (str mysearch str2 -1) <> -1
+method str begins str2 -> ok
+  arg Str str str2 ; arg Bool ok
+  ok := (str mysearch str2 -1) = 0
+
+method big ends small -> ok
+  arg Str big small ; arg Bool ok
+  ok := shunt big="" false (big search_last small -1) = big:len - small:len 
+
+method str hungry_split separator -> list  # like perl's split
+  arg Str str ; arg List:Str list ; arg Str separator
+  var Int sep_len := separator len
+  var Int index := 0
+  var Str acc 
+  while not list:size = 0
+    list -= list:first
+  while index < str:len
+    if (str index sep_len) = separator
+      if acc <> ""
+        list += acc
+        acc := ""
+        index += sep_len-1
+    else
+      if index = (str:len-1)
+        list += acc + str:index
+      else
+        acc += str:index
+    index += 1
+
+method str hungry_split_to_array separator -> array
+  arg Str str ; arg Array:Str array ; arg Str separator
+  var List:Str tmp := str hungry_split separator
+  array size := tmp:size
+  var Int count := 0
+  each item tmp 
+    array count := item
+    count += 1
+
+method str split separator -> array
+  arg Str str ; arg Array:Str array ; arg Str separator
+  array := str hungry_split_to_array separator
+
+function ucfirst str -> retval
+  arg Str str retval
+  retval := upper:(str 0 1) + (str 1 str:len-1)
+
+function filter_by_alphabet str alphabet -> str2
+  arg Str str alphabet str2
+  str2 := ""
+  for (var Int index) 0 str:len-1
+    if (alphabet search lower:(str:index) -1) <> -1
+      str2 += str:index
+
+function only_letters_and_digits str extra -> str2
+  arg Str str str2 extra
+  constant alphabet "abcdefghijklmnopqrstuvwxyz0123456789"
+  str2 := filter_by_alphabet str alphabet+extra
+
+function only_letters_and_digits str -> str2
+  arg Str str str2
+  str2 := only_letters_and_digits str ""
+  
+function only_digits str extra -> str2
+  arg Str str str2 extra
+  constant alphabet "0123456789"
+  str2 := filter_by_alphabet str alphabet+extra
+function only_digits str -> str2
+  arg Str str str2
+  str2 := only_digits str ""
+
+method str contains_alphabet alphabet -> ok
+  arg Str alphabet str ; arg Bool ok
+  ok := (filter_by_alphabet alphabet lower:str)=""
+
+function is_space_character chr -> ok 
+  arg Bool ok ; arg Char chr
+  ok := chr = " " or chr = "[lf]" or chr = "[cr]" or chr = "[tab]"
+
+function ucfirst_inside str -> str2
+  arg Str str str2
+  var Bool in := false
+  str2 := ""
+  for (var Int index) 0 str:len-1
+    var Char chr := str index
+    if not (in or is_space_character:chr)
+      in := true
+      str2 += upper chr
+    eif is_space_character:chr and in
+      in := false
+      str2 += chr
+    else
+      str2 += chr
+
+function collapse_spaces str -> retval
+  arg Str str retval
+  var Bool spaces := false
+  retval := ""
+  for (var Int index) 0 str:len-1
+    if str:index <> " "
+      retval += str:index
+      spaces := false
+    eif not spaces
+      spaces := true
+      retval += str:index
+
+function cleanup_space str -> retval
+  arg Str str retval
+  if str = ""
+    retval := ""
+    return
+  retval := collapse_spaces str
+  var Int i := 0
+  part leading
+    while i < str:len
+      if str:i<>" "
+        leave leading
+      i += 1
+  retval := str i str:len
+  var Int i := retval:len-1
+  part trailing
+    while i >= 0
+      if retval:i<>" "
+        leave trailing
+      i -= 1
+  retval := retval 0 i+1
+
+function trim str -> retval
+  arg Str str retval 
+  retval := cleanup_space str
+
+function chomp_trailing_space str -> str2
+  arg Str str str2
+  if str = ""
+    str2 := str
+    return 
+  var Int index := str:len-1
+  part find_first_char
+    while index >= 0
+      var Char chr := str index
+      if is_space_character:chr or chr = "[lf]" or chr = "[cr]"
+        index -= 1
+      else
+        leave find_first_char
+  str2 := str 0 index+1
+
+function strip_leading_space str -> retval
+  arg Str str retval
+  var Int start := 0
+  retval := ""
+  part find_leading
+    while start < str:len
+      if str:start <> " "
+        leave find_leading
+      start += 1
+  retval := str start str:len-start
+
+function contains_russian str -> ok
+  arg Str str ; arg Bool ok
+  constant alphabet "пыфгцрлаоеуидхтнсяйкщбмвз"
+  ok := (filter_by_alphabet alphabet lower:str)=""
+
+export strip_leading_space trim
+export chomp_trailing_space
+export '. hungry_split'
+export '. hungry_split_to_array'
+export '. mysearch'
+export '. contains'
+export '. contains_alphabet'
+export '. begins'
+export '. ends'
+export '. split'
+export ucfirst ucfirst_inside 
+export only_letters_and_digits only_digits
+export filter_by_alphabet 
+export cleanup_space collapse_spaces
+export is_space_character

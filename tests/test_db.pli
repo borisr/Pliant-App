@@ -1,0 +1,18 @@
+module "/pliant/language/compiler.pli"
+module "/pliant/language/context.pli"
+module "/pliant/language/stream.pli"
+module "/boris.reitman/util/file_util.pli"
+module "/pliant/admin/file.pli"
+module "/pliant/storage/database.pli"
+
+module "../model/db.pli"
+
+function clear_database
+  file_tree_delete "file:/tmp/tipjar_db/"
+  file_tree_create "file:/tmp/tipjar_db/"
+  db load "file:/tmp/tipjar_db/"+generate_id+".pdb" mount "/app/tipjar/data" 
+
+function prepare_database
+  clear_database
+
+export clear_database prepare_database

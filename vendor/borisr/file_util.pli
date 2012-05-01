@@ -1,0 +1,69 @@
+module "/pliant/language/stream.pli"
+module "/pliant/language/unsafe.pli"
+module "string.pli"
+
+function file_exists filename -> yes
+  arg Bool yes ; arg Str filename
+  yes := false
+  (var Stream s) open filename in
+  if s:is_open
+    yes := true
+    s:close
+
+function slurp_text_file filename -> text
+  arg Str filename ; arg Str text
+  var FileInfo info := file_query filename standard
+  if info=success
+    text resize (cast info:size Int)
+    (var Stream s) open filename in+safe
+    s raw_read text:characters text:len
+  else
+    text := ""
+
+function write_text_file filename str
+  var Stream stream ; arg Str filename str
+  stream open filename out
+  if stream:is_open
+    stream writechars str
+  else
+    console "ERROR: couldn't write to "+filename eol
+  stream close
+
+function dirname path -> dir
+  arg Str path dir
+  var Array:Str tokens := path hungry_split_to_array "/"
+  dir := shunt path:0="/" "/" ""
+  if tokens:size = 2
+    dir += tokens:0
+  eif tokens:size = 1 
+    void
+  eif tokens:size = 0 
+    dir := ""
+  else
+    for (var Int index) 0 tokens:size-3
+      dir += tokens:index + "/"
+    dir += tokens:(tokens:size-2)
+
+function shift_path_token path rest -> token
+  arg Str path token ; arg_w Str rest
+  token := ""
+  if path:len > 1
+    var Int index := ((path 1 path:len-1) search "/" -1)
+    if index <> -1
+      token := path 1 index
+      rest := path token:len+1 path:len
+    eif (path:0 = "/")
+      token := path 1 path:len ; rest := ""
+    else 
+      token := path ; rest := ""
+
+function filename_extension path -> extension
+  arg Str path extension
+  extension := ""
+  var Int pos := (path search_last "." -2) ; pos += 1
+  if pos >= 0 and path:len > pos
+    extension := path pos path:len-pos
+
+export write_text_file filename_extension
+export file_exists slurp_text_file dirname
+export shift_path_token

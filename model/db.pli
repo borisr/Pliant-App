@@ -1,0 +1,20 @@
+module "/pliant/storage/database.pli"
+module "/pliant/language/unsafe.pli"
+module "/pliant/language/compiler.pli"
+
+public
+
+type AppUser
+  field Str email
+  field Str password
+  field Float balance
+
+type ApplicationDatabase
+  field Set:AppUser users
+  field Int version <- -1
+  
+(gvar Database:ApplicationDatabase db) load "data:/app/sample/sample.pdb" log "data:/app/sample/sample.log"
+  
+gvar Data:(Set:AppUser) users :> db:data:users
+
+

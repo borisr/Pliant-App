@@ -1,0 +1,267 @@
+module "/pliant/language/compiler.pli"
+module "/pliant/language/context.pli"
+module "/pliant/language/stream.pli"
+module "/pliant/language/unsafe.pli"
+module "/pliant/protocol/http/server.pli"
+module "/pliant/graphic/ui/server/context.pli"
+module "/pliant/graphic/ui/server/api.pli"
+
+constant OPENNING "{{"
+constant CLOSING "}}"
+
+gvar Link:Argument current_actions old_actions 
+
+constant DEFAULT_ACTION_NAME "TEMPLATE_DEFAULT_ACTION_NAME"
+
+function get_some_action actions section_name -> action # :)
+  arg (Dictionary Str DelayedAction) actions 
+  arg DelayedAction action
+  arg Str section_name 
+  if not exists:actions
+    return
+  if (actions exists section_name)
+    action := actions section_name
+  eif (actions exists DEFAULT_ACTION_NAME)
+    action := actions DEFAULT_ACTION_NAME
+
+function is_action_defined actions section_name -> ok
+  arg (Dictionary Str DelayedAction) actions
+  arg Str section_name ; arg Bool ok
+  ok := false
+  if (actions exists DEFAULT_ACTION_NAME)
+    ok := true
+  eif (actions exists section_name)
+    ok := true
+
+function parse_section_name section_name keyword value
+  arg_rw Str keyword value ; arg Str section_name
+  if section_name = ""
+    return
+  if not (section_name eparse any:keyword ":" any:value)
+    keyword := section_name
+
+function record_delayed_action section_name actions da
+  arg Str section_name ; arg DelayedAction da
+  arg_rw (Dictionary Str DelayedAction) actions
+  if not exists:actions
+    return
+  if not (actions exists section_name)
+    actions insert section_name da
+  else
+    actions section_name := da
+
+function execute1 a f
+  arg Address a ; arg Function f
+  indirect
+
+function execute_delayed_action section_name actions tvalue obj_name obj_address
+  arg Str obj_name ; arg Address obj_address ; arg Str tvalue
+  arg Str section_name ; arg (Dictionary Str DelayedAction) actions
+  var DelayedAction da := get_some_action actions section_name
+  check exists:da 
+  var Pointer:Type t :> entry_type da:parameter
+  var CBool found := false
+  for (var Int i) 0 t:nb_fields-1
+    if (t field i):name=obj_name
+      (da:parameter translate Byte (t field i):offset) map Address := obj_address
+      found := true
+    if (t field i):name="template_value"
+      (da:parameter translate Byte (t field i):offset) map Address := addressof:tvalue
+    if (t field i):name="template_keyword"
+      (da:parameter translate Byte (t field i):offset) map Address := addressof:section_name
+  if not found
+    console "warning: failed to set "+obj_name+" object"
+    return
+  execute1 da:parameter da:function
+
+
+function render_template_section section_name actions tvalue stream
+  arg Str section_name ; arg_rw Stream stream ; arg Str tvalue
+  arg (Dictionary Str DelayedAction) actions
+  execute_delayed_action section_name actions tvalue "stream" addressof:stream
+
+function render_template_section section_name actions tvalue page
+  arg Str section_name ; arg_rw HtmlPage page ; arg Str tvalue
+  arg (Dictionary Str DelayedAction) actions
+  execute_delayed_action section_name actions tvalue "page" addressof:page
+
+function render_template_section section_name actions tvalue context
+  arg Str section_name ; arg_rw UIServerContext context ; arg Str tvalue
+  arg (Dictionary Str DelayedAction) actions
+  execute_delayed_action section_name actions tvalue "context" addressof:context
+
+
+function record_delayed_expression e is_default
+  arg Bool is_default ; arg_rw Expression e
+  var Str mode := shunt (e:0 cast HtmlPage) "page" (e:0 cast UIServerContext) "context" "stream"
+  e local_variable "template_value" Str
+  var Link:List expressions :> new List
+  expressions append addressof:(e e:size-1)
+  var Link:List byaddress :> new List
+  if mode="page"
+    byaddress append addressof:(new Ident (cast "page" Ident))
+  eif mode="stream"
+    byaddress append addressof:(new Ident (cast "stream" Ident))
+  else # page_mode="context"
+    byaddress append addressof:(new Ident (cast "context" Ident))
+  byaddress append addressof:(new Ident (cast "template_value" Ident))
+  if is_default
+    byaddress append addressof:(new Ident (cast "template_keyword" Ident))
+  var Pointer:Module module :> e module
+  var Address mark := module mark
+  var List functions ; var Link:Type type
+  e freeze expressions byaddress functions type
+  module rewind mark ?
+  e suckup e:0
+  var Link:Argument section_name 
+  if is_default
+    section_name :> argument constant Str DEFAULT_ACTION_NAME
+  else
+    e suckup e:1
+    section_name :> e:1:result
+  e add (instruction (the_function record_delayed_action Str (Dictionary Str DelayedAction) DelayedAction) section_name current_actions (e e:size-1):result)
+  e set_void_result
+
+meta '. tblock' e
+  if e:size<3 or  not (e:1 cast Str)
+    return
+  if not (e:0 cast Stream) and not (e:0 cast HtmlPage) and not (e:0 cast UIServerContext)
+    return
+  record_delayed_expression e false
+
+meta '. template_section' e
+  if e:size<3 or  not (e:1 cast Str)
+    return
+  if not (e:0 cast Stream) and not (e:0 cast HtmlPage) and not (e:0 cast UIServerContext)
+    return
+  record_delayed_expression e false
+
+meta '. template_default' e
+  if e:size<2 
+    return
+  if not (e:0 cast Stream) and not (e:0 cast HtmlPage) and not (e:0 cast UIServerContext)
+    return
+  e local_variable "template_keyword" Str
+  record_delayed_expression e true
+      
+function render_template str actions obj page_mode 
+  var Str tvalue
+  arg Str str
+  arg Address obj ; arg Str page_mode 
+  arg (Dictionary Str DelayedAction) actions
+  function render_section section_name actions tvalue obj page_mode 
+    arg Str section_name ; arg Str page_mode ; arg Address obj ; arg Str tvalue
+    arg (Dictionary Str DelayedAction) actions
+    if page_mode="page"
+      render_template_section section_name actions tvalue (obj map HtmlPage)
+    eif page_mode="stream"
+      render_template_section section_name actions tvalue (obj map Stream)
+    else # page_mode="context"
+      render_template_section section_name actions tvalue (obj map UIServerContext)
+  var Bool in := false
+  var Int open_len := OPENNING:len
+  var Int close_len := CLOSING:len
+  var Int str_len := str:len
+  var Int i := 0
+  constant OPENNING_LONG "<TEMPLATE"
+  constant CLOSING_LONG "</TEMPLATE>"
+  var Int open_long_len := OPENNING_LONG:len
+  var Int closing_long_len := CLOSING_LONG:len
+  #var Str accumulated := ""
+  function send_text obj accumulated page_mode
+    arg Str accumulated page_mode ; arg Address obj
+    #console accumulated
+    if page_mode="page"
+      (obj map HtmlPage) html accumulated
+    eif page_mode="stream"
+      (obj map Stream) writechars accumulated
+    eif page_mode="context" and (obj map UIServerContext):client_software="http_proxy"
+      (obj map UIServerContext) html accumulated
+  while i < str_len 
+    var Bool match := false
+    if (str i open_long_len) = OPENNING_LONG
+      var Int j := open_long_len
+      var Str acc := ""
+      while (str (i+j) closing_long_len) <> CLOSING_LONG and i+j+closing_long_len < str_len
+        acc += str:(i+j)
+        j += 1
+      if i+j+closing_long_len <= str_len and acc <> ""
+        if (acc eparse _ "NAME=[dq]" any:(var Str section_name) "[dq]>" any:tvalue)
+          if (is_action_defined actions section_name) 
+            match := true
+            #var DateTime pstart := datetime
+            #send_text obj accumulated page_mode
+            #var DateTime pend := datetime ; console "send_text: " pend:seconds-pstart:seconds eol
+            #accumulated := ""
+            render_section section_name actions tvalue obj page_mode
+            i := i+j+closing_long_len
+    eif (str i open_len) = OPENNING
+      i += open_len
+      var Int j := 0
+      part scan_name
+        while i+j < str_len 
+         if (str i+j close_len) = CLOSING
+           var Str section_name := str i j
+           #stream writechars "DEBUG_FOR_"+section_name
+           parse_section_name section_name (var Str keyword) tvalue
+           if (is_action_defined actions keyword) 
+             #var DateTime pstart := datetime
+             #send_text obj accumulated page_mode
+             #var DateTime pend := datetime ; console "send_text': " pend:seconds-pstart:seconds eol
+             #accumulated := ""
+             render_section keyword actions tvalue obj page_mode 
+             i += j+close_len
+             match := true
+           else
+             i -= open_len
+           leave scan_name
+         else
+           j += 1
+        if i+j >= str_len
+          return  # BAD TEMPLATE
+    if not match 
+      send_text obj str:i page_mode
+      #accumulated += str:i
+      i += 1
+  doc#if accumulated<>""
+    send_text obj accumulated page_mode
+
+function render_template_stream str actions stream
+  arg Str str ; arg_rw Stream stream 
+  arg (Dictionary Str DelayedAction) actions
+  render_template str actions addressof:stream "stream"
+
+function render_template_page str actions page
+  arg Str str ; arg_rw HtmlPage page
+  arg (Dictionary Str DelayedAction) actions
+  render_template str actions addressof:page "page"
+
+function render_template_context str actions context
+  arg Str str ; arg_rw UIServerContext context
+  arg (Dictionary Str DelayedAction) actions
+  render_template str actions addressof:context "context"
+
+
+# args are: stream obj, template string 
+meta '. template' e 
+  if e:size<3 or not (e:1 cast Str)
+    return
+  if not (e:0 cast Stream) and not (e:0 cast HtmlPage) and not (e:0 cast UIServerContext)
+    return
+  var Str page_mode := shunt (e:0 cast HtmlPage) "page" (e:0 cast UIServerContext) "context" "stream"
+  old_actions :> current_actions 
+  current_actions :> argument local (Dictionary Str DelayedAction)
+  e suckup e:0
+  e suckup e:1
+  e:(e:size-1) compile
+  e suckup e:(e:size-1) # body
+  if page_mode="page"
+    e add (instruction (the_function render_template_page Str (Dictionary Str DelayedAction) HtmlPage) e:1:result current_actions e:0:result)
+  eif page_mode="stream"
+    e add (instruction (the_function render_template_stream Str (Dictionary Str DelayedAction) Stream) e:1:result current_actions e:0:result)
+  else # page_mode="context"
+    e add (instruction (the_function render_template_context Str (Dictionary Str DelayedAction) UIServerContext) e:1:result current_actions e:0:result)
+  e set_void_result
+  current_actions :> old_actions
+
+export '. tblock' '. template' '. template_default'

@@ -1,0 +1,34 @@
+module "/pliant/graphic/ui/server/api.pli"
+module "/pliant/storage/database.pli"
+
+module "../../vendor/borisr/template.pli"
+module "../../model/db.pli"
+module "../../model/util.pli"
+module "../../helper/page.ui"
+
+
+function create_new_user email
+  arg Str email
+  var Str user_id := create_new_user
+  var Data:AppUser user :> users:user_id
+  user:email := email
+
+ui_function show_all_users
+  each user users
+    text user:email
+
+public
+
+ui_function management_ui
+  template get_template:"helloworld/manage.html"
+    tblock "input"
+      input "email: " (ovar Str email)
+      button "create user"
+        if email<>""
+          create_new_user email
+          section_replay "all"
+    tblock "all"
+      section "all"
+        show_all_users
+
+

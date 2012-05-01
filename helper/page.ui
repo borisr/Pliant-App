@@ -1,0 +1,53 @@
+module "/pliant/graphic/ui/server/api.pli"
+module "/pliant/language/unsafe.pli"
+module "/pliant/language/context.pli"
+module "/pliant/language/compiler.pli"
+module "/pliant/admin/file.pli"
+
+module "../vendor/borisr/template.pli"
+module "../vendor/borisr/ssi.pli"
+module "../config/config.pli"
+
+public
+
+function get_template filename lang_ -> contents
+  arg Str filename contents ; arg Str lang_
+  var Str lang := lang_
+  part findfile
+    var Str suffix := shunt lang="en" "" lang+"/"
+    var Str full_filename := replace (rootdir+"view/"+suffix+filename) "//" "/"
+    if not (full_filename eparse any ".html")
+      full_filename += ".html"
+    if lang<>"en" and not (file_query full_filename standard)=defined
+      lang := "en"
+      restart findfile
+  var Str suffix_no_slash := shunt lang="en" "" lang
+  contents := (slurp_ssi_file full_filename rootdir+"view/"+suffix_no_slash)
+
+ui_function get_template filename -> contents
+  arg Str filename contents
+  contents := get_template filename "en"
+
+named_expression site_template_expr
+  template get_template:(t_page_template+".html")
+    tblock "our_email"
+      html "sample@sample.com"
+
+named_expression header_footer_expr
+  html_header TITLE get_template:"head.html"
+  var Str t := TEMPLATE
+  # output common header here, if any
+  BODY
+  html_footer
+  # output common footer here, if any
+
+meta site_template e
+  if e:size <> 3
+    return
+  var Link:Expression t :> expression duplicate site_template_expr
+  t auto_rename
+  t substitute "t_page_template" e:0
+  var Link:Expression newargs :> expression ident "{}" subexpressions (e:2 0 e:2:size) (t:0:1 0 t:0:1:size)
+  t:0:1 := newargs
+  e compile_as (expression duplicate header_footer_expr substitute BODY t substitute TITLE e:1 substitute TEMPLATE e:0)
+

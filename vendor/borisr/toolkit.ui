@@ -1,0 +1,83 @@
+module "/pliant/graphic/ui/server/api.pli"
+module "/boris.reitman/util/file_util.pli"
+module "/pliantx/lexer/multiline_string.pli"
+module "/pliant/language/data/id.pli"
+
+ui_function html_header title extra_headers options
+  arg Str title extra_headers options
+  html "<title>"+title+"</title>"
+  var Str headers := extra_headers
+  var Bool has_sound := false
+  if (options option "sound") 
+    has_sound := options option "sound" Bool
+  if has_sound
+    headers += {{<script type="text/javascript" src="/lib/soundmanager/soundmanager.js"></script>
+     <script>
+       pliant().onready_callbacks.push(function() { soundManagerInit();});
+     </script> }}
+  if (options option "css") 
+    var Str css := options option "css" Str
+    headers += "<link href='"+css+"' rel='stylesheet' type='text/css' />"
+  html "<extra_headers>"+headers+"</extra_headers>"
+  if has_sound
+    html "<div><!--soundmanager adds a hidden flash movie here--></div>"
+  section "invisible"
+    void
+  section "javascript"
+    void
+
+ui_function html_header title extra_headers
+  arg Str title extra_headers
+  html_header title extra_headers ""
+ui_function html_header title
+  arg Str title
+  html_header title "" ""
+
+ui_function html_footer
+  void
+
+ui_function call_external_url url
+  arg Str url
+  section_overwrite "invisible"
+    html "REDIRECT:"+url
+
+ui_function execute_javascript code
+  arg Str code
+  section_tail "javascript"
+    html code+";"+"//$"+generate_id+"[lf]"
+
+ui_function a_href title url 
+  arg Str url title
+  html "<a href=[dq]"+url+"[dq]>"+title+"</a>"
+
+ui_function html_image src alt
+  arg Str src alt
+  html "<img alt=[dq]"+alt+"[dq] src=[dq]" + src + "[dq]>"
+
+ui_function html_image_link src alt href
+  arg Str src alt href
+  if href<>""
+    html "<a href=[dq]"+href+"[dq]>"
+  html_image src alt
+  if href<>""
+    html "</a>"
+
+ui_function scroll_mark name
+  arg Str name
+  html "<a id='mark_"+name+"' name=[dq]"+name+"[dq]></a>"
+
+ui_function scroll_to_mark name
+  arg Str name
+  execute_javascript "document.getElementById('mark_"+name+"').scrollIntoView(true)"
+
+doc
+  ui_function scroll_to_section name
+    arg Str name
+    execute_javascript "document.getElementById('TODO: get correct prefix"+name+"').scrollIntoView(true)"
+
+
+export '. html_header' '. html_footer' 
+export '. execute_javascript' '. call_external_url'
+export '. html_image' '. html_image_link'
+export '. scroll_mark' '. scroll_to_mark'
+export '. a_href'

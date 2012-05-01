@@ -1,0 +1,35 @@
+module "/pliant/language/stream.pli"
+module "/pliant/language/unsafe.pli"
+module "/pliant/language/compiler.pli"
+module "string.pli"
+module "file_util.pli"
+
+function slurp_ssi_file_ filename site_homedir depth -> str
+  arg Str filename str site_homedir
+  arg Int depth
+  str := slurp_text_file filename
+  var Str dir := dirname filename
+  var Str space0 space1 include include_type
+  while (str eparse any "<!--#include" spaces:space0 any:include_type "=[dq]" any:include "[dq]" spaces:space1 "-->" any)
+    var Str match := "<!--#include"+space0+include_type+"=[dq]"+include+"[dq]"+space1+"-->" 
+    var Int start := str mysearch match -1
+    if start = -1 { console "Error" }
+    var Str new_filename
+    if include:0 = "/" and include_type = "virtual"
+      new_filename := site_homedir + include
+    else
+      new_filename := dir + "/" + include
+    if depth < 10
+      str := replace str match (slurp_ssi_file_ new_filename site_homedir depth+1)
+    else
+      str := replace str match " error: cyclic ssi inclusion detected "
+
+function slurp_ssi_file filename site_homedir -> str
+  arg Str filename str site_homedir 
+  str := slurp_ssi_file_ filename site_homedir 0
+
+function ssicat filename root
+  arg Str filename root
+  console (slurp_ssi_file filename root)
+
+export slurp_ssi_file ssicat

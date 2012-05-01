@@ -1,0 +1,4 @@
+public 
+
+constant rootdir "/app/sample/"  # must end with slash
+

@@ -1,0 +1,30 @@
+module "/pliant/language/context.pli"
+module "/pliant/admin/md5.pli"
+module "/boris.reitman/util/time_util.pli"
+module "/boris.reitman/util/string.pli"
+module "/boris.reitman/util/email.pli"
+module "/boris.reitman/util/tpl.pli"
+module "/boris.reitman/util/file_util.pli"
+module "/boris.reitman/util/sys_util.pli"
+module "/pliant/storage/database.pli"
+module "/pliant/util/crypto/random.pli"
+module "/pliant/util/encoding/base64.pli"
+module "/pliant/language/stream.pli"
+
+module "db.pli"
+
+public 
+
+function create_new_user -> user_id
+  arg Str user_id
+  user_id := generate_id
+  while (exists db:data:users:user_id)
+    user_id := generate_id
+  db:data:users create user_id
+  var Data:AppUser user :> db:data:users user_id
+  user balance := 0
+
+method user add_money amount
+  arg_rw AppUser user ; arg Float amount
+  user balance += amount
+

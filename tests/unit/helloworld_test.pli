@@ -1,0 +1,17 @@
+module "/pliantx/test/test.pli"
+module "/pliant/storage/database.pli"
+module "../test_db.pli"
+module "../../model/db.pli"
+module "../../model/util.pli"
+
+public
+
+function test_create_user
+  clear_database
+  is users:size 0
+  create_user
+  is users:size 1
+    
+function run
+  plan_tests 10
+  test_create_user

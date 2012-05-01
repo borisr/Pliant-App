@@ -1,0 +1,26 @@
+module "/pliant/graphic/ui/server/api.pli"
+module "/pliant/storage/database.pli"
+
+module "vendor/borisr/template.pli"
+module "vendor/borisr/toolkit.ui"
+
+module "helper/page.ui"
+module "model/db.pli"
+module "model/util.pli"
+#module "controller/helloworld/helloworld.ui"
+
+ui_path "/app/sample/helloworld"
+  http "frame" "false"
+  http "nocache" "true"
+  http "webdesign" "true"
+
+  window main
+    site_template "main_container" "Sample App"
+      tblock "main"
+        section "main"
+          template get_template:"helloworld.html"
+            tblock "current_date"
+              text string:datetime
+            tblock "management"
+              text ""; #management_ui
+
