@@ -9,9 +9,9 @@ public
 function test_create_user
   clear_database
   is users:size 0
-  create_user
+  create_new_user
   is users:size 1
     
 function run
-  plan_tests 10
+  plan_tests 2
   test_create_user
