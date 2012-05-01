@@ -1,0 +1,45 @@
+module "/pliant/language/unsafe.pli"
+module "/pliant/language/context.pli"
+module "/pliant/language/compiler.pli"
+module "/pliant/storage/database_pml.pli"
+
+module "../../model/db.pli"
+module "../../model/util.pli"
+module "../../config/config.pli"
+
+function init_version_first_time
+  if not db:data:version >= 0
+    db:data:version := -1
+  eif db:data:version = -1
+    db:data:version := -1
+
+function do_stuff_on_database
+  # work on the db here
+  void
+
+function version_0
+  do_stuff_on_database
+  db:data:version := 0
+
+gvar Array:Address migration_registry
+
+function register_migrations
+  migration_registry size := 1
+  migration_registry += addressof:(the_function version_0)
+
+function migrate_prototype f
+  arg Function f
+  indirect
+
+function migrate_database
+  if migration_registry:size = 0
+    register_migrations
+  init_version_first_time
+  var Int version_count := db:data:version+1
+  while version_count <= current_database_version
+    var Pointer:Function migration :> migration_registry:version_count map Function
+    migrate_prototype migration
+    version_count += 1
+
+export migrate_database
+

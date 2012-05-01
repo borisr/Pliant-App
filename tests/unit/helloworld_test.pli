@@ -3,11 +3,13 @@ module "/pliant/storage/database.pli"
 module "../test_db.pli"
 module "../../model/db.pli"
 module "../../model/util.pli"
+module "../../admin/migrate/migrate.pli"
 
 public
 
 function test_create_user
   clear_database
+  migrate_database
   is users:size 0
   create_new_user
   is users:size 1

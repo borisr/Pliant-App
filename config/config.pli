@@ -1,4 +1,6 @@
 public 
 
 constant rootdir "/app/sample/"  # must end with slash
+constant current_database_version 0
+
 
